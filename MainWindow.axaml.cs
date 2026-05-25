@@ -25,7 +25,7 @@ public partial class MainWindow : Window
     {
         try {
             DotNetEnv.Env.Load();
-            _apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? string.Empty;
+            _apiKey = (Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? string.Empty).Trim();
 
             if (string.IsNullOrEmpty(_apiKey)) {
                 Console.WriteLine("Figyelem: A GEMINI_API_KEY nem található a .env fájlban!");
@@ -124,7 +124,7 @@ public partial class MainWindow : Window
                                    5. The script must evaluate to a result that can be converted to a string and displayed on the calculator's screen.
                                    """;
 
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={_apiKey}";
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={_apiKey}";
 
         var requestBody = new
         {
