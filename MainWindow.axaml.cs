@@ -1,20 +1,15 @@
 using System;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
+using Google.GenAI;
 
 namespace Demo;
 
 public partial class MainWindow : Window
 {
-    private static readonly HttpClient _httpClient = new HttpClient();
-    private string _apiKey = string.Empty;
-
     public MainWindow()
     {
         InitializeComponent();
@@ -23,28 +18,41 @@ public partial class MainWindow : Window
 
     private void LoadEnvironment()
     {
-        try {
+        try
+        {
             DotNetEnv.Env.Load();
-            _apiKey = (Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? string.Empty).Trim();
-
-            if (string.IsNullOrEmpty(_apiKey)) {
-                Console.WriteLine("Figyelem: A GEMINI_API_KEY nem található a .env fájlban!");
+            
+            // 1. Kiolvassuk a mi eddigi kulcsunkat
+            var myApiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+            
+            // 2. Ha megvan, beállítjuk a hivatalos SDK által elvárt néven is!
+            if (!string.IsNullOrEmpty(myApiKey))
+            {
+                Environment.SetEnvironmentVariable("GOOGLE_API_KEY", myApiKey);
+            }
+            
+            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GOOGLE_API_KEY")))
+            {
+                Console.WriteLine("Figyelem: Az API kulcs nem található a .env fájlban!");
             }
         }
-        catch (Exception ex) {
+        catch (Exception ex)
+        {
             Console.WriteLine($".env betöltési hiba: {ex.Message}");
         }
     }
 
     private void OnInputClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is Button button) {
+        if (sender is Button button)
+        {
             if (Display.Text == "0" ||
                 Display.Text == "Hiba" ||
                 Display.Text == "API Hiba" ||
                 Display.Text == "AI gondolkodik..." ||
                 Display.Text == "Írj be egy feladatot az AI-nak..." ||
-                Display.Text == "Hiányzó API kulcs!") {
+                Display.Text == "Hiányzó API kulcs!")
+            {
                 Display.Text = "";
             }
 
@@ -62,12 +70,14 @@ public partial class MainWindow : Window
         var input = Display.Text;
         if (string.IsNullOrWhiteSpace(input)) return;
 
-        try {
+        try
+        {
             var options = ScriptOptions.Default.WithImports("System", "System.Math");
             var result = await CSharpScript.EvaluateAsync(input, options);
             Display.Text = result?.ToString();
         }
-        catch (Exception ex) {
+        catch (Exception ex)
+        {
             Display.Text = "Hiba";
             Console.WriteLine($"Roslyn hiba: {ex.Message}");
         }
@@ -77,28 +87,33 @@ public partial class MainWindow : Window
     {
         var prompt = Display.Text;
 
-        if (string.IsNullOrWhiteSpace(prompt) || prompt == "0") {
+        if (string.IsNullOrWhiteSpace(prompt) || prompt == "0")
+        {
             Display.Text = "Írj be egy feladatot az AI-nak...";
             return;
         }
 
-        if (string.IsNullOrEmpty(_apiKey)) {
+        // Itt már az új nevet ellenőrizzük
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GOOGLE_API_KEY")))
+        {
             Display.Text = "Hiányzó API kulcs!";
             return;
         }
 
         Display.Text = "AI gondolkodik...";
 
-        try {
+        try
+        {
             var generatedCode = await CallGeminiApiAsync(prompt);
             
-                generatedCode = generatedCode.Replace("```csharp", "").Replace("```", "").Trim();
+            generatedCode = generatedCode.Replace("```csharp", "").Replace("```", "").Trim();
 
             Display.Text = generatedCode;
         }
-        catch (Exception ex) {
+        catch (Exception ex)
+        {
             Display.Text = "API Hiba";
-            Console.WriteLine($"Gemini API hiba: {ex.Message}");
+            Console.WriteLine($"Gemini API SDK hiba: {ex.Message}");
         }
     }
 
@@ -124,33 +139,16 @@ public partial class MainWindow : Window
                                    5. The script must evaluate to a result that can be converted to a string and displayed on the calculator's screen.
                                    """;
 
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={_apiKey}";
+        // A kliens most már automatikusan megtalálja a GOOGLE_API_KEY-t
+        var client = new Client();
 
-        var requestBody = new
-        {
-            contents = new[]
-            {
-                new { parts = new[] { new { text = $"{systemInstruction}\n{userPrompt}".Trim() } } }
-            }
-        };
+        var fullPrompt = $"{systemInstruction}\n\nFeladat: {userPrompt}";
 
-        var json = JsonSerializer.Serialize(requestBody);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var response = await client.Models.GenerateContentAsync(
+            model: "gemini-2.5-flash",
+            contents: fullPrompt
+        );
 
-        var response = await _httpClient.PostAsync(url, content);
-        response.EnsureSuccessStatusCode();
-
-        var responseString = await response.Content.ReadAsStringAsync();
-
-        using var doc = JsonDocument.Parse(responseString);
-        var root = doc.RootElement;
-
-        var textResult = root.GetProperty("candidates")[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString();
-
-        return textResult ?? "Hiba";
+        return response.Candidates[0].Content.Parts[0].Text ?? "Hiba";
     }
 }
