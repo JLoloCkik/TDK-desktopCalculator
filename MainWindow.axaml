@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Demo.MainWindow"
+        Title="AI Számológép" 
+        Width="350" Height="500"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid RowDefinitions="Auto, *">
+        <TextBox x:Name="Display" 
+                 Grid.Row="0" 
+                 FontSize="32" 
+                 Margin="10" 
+                 TextAlignment="Right" 
+                 PlaceholderText="0" />
+
+        <UniformGrid Grid.Row="1" Columns="4" Rows="5" Margin="10">
+            <Button Content="C" Click="OnClearClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="(" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content=")" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="/" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+
+            <Button Content="7" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="8" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="9" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="*" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+
+            <Button Content="4" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="5" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="6" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="-" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+
+            <Button Content="1" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="2" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="3" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="+" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+
+            <Button Content="AI" Click="OnAiClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="0" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="." Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Content="=" Click="OnCalculateClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+        </UniformGrid>
+    </Grid>
+</Window>
