@@ -64,7 +64,6 @@
             <Button Grid.Row="3" Grid.Column="2" Content="3"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
             <Button Grid.Row="3" Grid.Column="3" Content="+"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
 
-            <!-- AI gomb: 2 oszlopot foglal -->
             <Button Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
                     x:Name="AiButton"
                     Content="🤖 AI Funkció"
@@ -75,8 +74,8 @@
             <Button Grid.Row="4" Grid.Column="3" Content="="   Click="OnCalculateClick" FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
         </Grid>
 
-        <!-- Dinamikus AI gombok területe: Közvetlenül a gombok alá, 4 oszlopos elrendezésben, keret nélkül -->
-        <UniformGrid Grid.Row="3" Columns="4" Margin="10,0,10,4">
+        <!-- Dinamikus rács, ide kerülnek azonnal a generált gombok -->
+        <UniformGrid x:Name="ActionGrid" Grid.Row="3" Columns="4" Margin="10,0,10,4">
             <!-- [INJECT BUTTON] -->
         </UniformGrid>
 

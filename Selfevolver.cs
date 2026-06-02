@@ -23,49 +23,41 @@ public class SelfEvolver
 
     public bool IsSourceAvailable => File.Exists(_csFilePath) && File.Exists(_axamlFilePath);
 
-    public async Task<EvolveResult> EvolveAndRestartAsync(
+    // Evolve némán: Nincs újraindítás! Csak a fájlokat mentjük és buildeljük.
+    public async Task<EvolveResult> EvolveSilentlyAsync(
         string featureName,
         string buttonLabel,
-        string handlerCode,
-        Action<string> progressCallback)
+        string handlerCode)
     {
         try
         {
-            progressCallback("📄 Forráskód beolvasása...");
             var csSource   = await File.ReadAllTextAsync(_csFilePath, Encoding.UTF8);
             var axamlSource = await File.ReadAllTextAsync(_axamlFilePath, Encoding.UTF8);
 
             if (csSource.Contains($"void {featureName}(") || csSource.Contains($"async void {featureName}("))
                 return EvolveResult.Fail($"A '{featureName}' már létezik!");
 
-            progressCallback("✏️ Kód injektálása...");
             var newCsSource = InjectMethodIntoCs(csSource, handlerCode);
-            if (newCsSource == null) return EvolveResult.Fail("Nem találom a // [INJECT POINT] jelölőt a .cs fájlban.");
+            if (newCsSource == null) return EvolveResult.Fail("Nem találom a // [INJECT POINT] jelölőt.");
 
-            progressCallback("🎨 Gomb injektálása...");
             var newAxamlSource = InjectButtonIntoAxaml(axamlSource, featureName, buttonLabel);
-            if (newAxamlSource == null) return EvolveResult.Fail("Nem találom az <!-- [INJECT BUTTON] --> jelölőt az AXAML fájlban.");
+            if (newAxamlSource == null) return EvolveResult.Fail("Nem találom az <!-- [INJECT BUTTON] --> jelölőt.");
 
-            progressCallback("💾 Mentés...");
             await File.WriteAllTextAsync(_csFilePath + ".bak", csSource, Encoding.UTF8);
             await File.WriteAllTextAsync(_axamlFilePath + ".bak", axamlSource, Encoding.UTF8);
             await File.WriteAllTextAsync(_csFilePath, newCsSource, Encoding.UTF8);
             await File.WriteAllTextAsync(_axamlFilePath, newAxamlSource, Encoding.UTF8);
 
-            progressCallback("🔨 Fordítás (dotnet build)...");
             var buildResult = await RunDotnetBuildAsync(_projectRoot);
             if (!buildResult.Success)
             {
-                progressCallback("⚠️ Fordítási hiba! Visszaállítás...");
                 await File.WriteAllTextAsync(_csFilePath, csSource, Encoding.UTF8);
                 await File.WriteAllTextAsync(_axamlFilePath, axamlSource, Encoding.UTF8);
-                return EvolveResult.Fail($"Build hiba:\n{buildResult.Output}");
+                return EvolveResult.Fail($"Build hiba, forráskód visszaállítva.");
             }
 
-            progressCallback("🚀 Újraindítás...");
-            RestartApplication();
-
-            return EvolveResult.Ok("Sikeres! Újraindul...");
+            // MINDEN SIKERES, NINCS ÚJRAINDÍTÁS
+            return EvolveResult.Ok("Mentve és befordítva.");
         }
         catch (Exception ex)
         {
@@ -101,7 +93,9 @@ public class SelfEvolver
                     Height="52"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Stretch"
-                    Margin="2"/>
+                    Margin="2"
+                    Background="#2979FF"
+                    Foreground="White"/>
             {injectMarker}
 """;
         return source.Replace(injectMarker, buttonXaml);
@@ -121,34 +115,8 @@ public class SelfEvolver
         };
 
         using var process = Process.Start(psi) ?? throw new Exception("Nem indult a build.");
-        var output = new StringBuilder();
-        process.OutputDataReceived += (_, e) => { if (e.Data != null) output.AppendLine(e.Data); };
-        process.ErrorDataReceived  += (_, e) => { if (e.Data != null) output.AppendLine("[ERR] " + e.Data); };
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
         await process.WaitForExitAsync();
-
-        return (process.ExitCode == 0, output.ToString());
-    }
-
-    // FIGYELEM: Ez a rész változott! Levettük a 'static'-ot és 'dotnet run'-t használunk!
-    private void RestartApplication()
-    {
-        // A legbiztosabb módja az újraindításnak, ha ugyanúgy "dotnet run"-t hívunk
-        // a projekt könyvtárában, mintha te tennéd manuálisan a terminálból.
-        var psi = new ProcessStartInfo
-        {
-            FileName = "dotnet",
-            Arguments = "run",
-            WorkingDirectory = _projectRoot, // Itt használjuk a projekt elérési útját
-            UseShellExecute = true
-        };
-
-        Process.Start(psi);
-        
-        // Hagyunk fél másodpercet, hogy az új folyamat biztonságosan leváljon
-        System.Threading.Thread.Sleep(500);
-        Environment.Exit(0);
+        return (process.ExitCode == 0, "");
     }
 
     private static string? FindProjectRoot(string startDir)

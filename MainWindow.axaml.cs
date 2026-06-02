@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia;
@@ -7,58 +9,62 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using Google.GenAI;
 
 namespace Demo;
 
+public class ScriptGlobals
+{
+    public MainWindow Window { get; set; } = null!;
+    public string DisplayText
+    {
+        get => Window.Display.Text ?? "";
+        set => Dispatcher.UIThread.Post(() => Window.Display.Text = value);
+    }
+}
+
 public partial class MainWindow : Window
 {
+    private ScriptState<object>? _scriptState;
+    private readonly ScriptGlobals _globals;
     private readonly SelfEvolver _evolver;
+    private readonly List<(string Label, string Code)> _runtimeFeatures = new();
 
     public MainWindow()
     {
         InitializeComponent();
+        _globals = new ScriptGlobals { Window = this };
         _evolver = new SelfEvolver();
         LoadEnvironment();
         UpdateEvolverStatus();
     }
 
-    // ---------------------------------------------------------------------------
-    // .env betöltés
-    // ---------------------------------------------------------------------------
     private void LoadEnvironment()
     {
         try
         {
             DotNetEnv.Env.Load();
             var key = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
-            if (!string.IsNullOrEmpty(key))
-                Environment.SetEnvironmentVariable("GOOGLE_API_KEY", key);
+            if (!string.IsNullOrEmpty(key)) Environment.SetEnvironmentVariable("GOOGLE_API_KEY", key);
 
             if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GOOGLE_API_KEY")))
                 SetStatus("⚠️ GOOGLE_API_KEY hiányzik a .env fájlból!", isError: true);
             else
                 SetStatus("✅ Kész. Írj be kérést → 🤖 AI gomb.");
         }
-        catch (Exception ex)
-        {
-            SetStatus($".env hiba: {ex.Message}", isError: true);
-        }
+        catch (Exception ex) { SetStatus($".env hiba: {ex.Message}", isError: true); }
     }
 
     private void UpdateEvolverStatus()
     {
-        if (_evolver.IsSourceAvailable)
-            EvolverStatusText.Text = "🟢 Self-evolving: AKTÍV (Azonnali kódba írás)";
-        else
-            EvolverStatusText.Text = "🔴 Self-evolving: INAKTÍV (Forráskód nem elérhető)";
+        EvolverStatusText.Text = _evolver.IsSourceAvailable
+            ? "🟢 Self-evolving: AKTÍV (Azonnali RAM + Háttér mentés)"
+            : "🟡 Self-evolving: RAM mód (Forráskód nem elérhető)";
     }
 
-    // ---------------------------------------------------------------------------
-    // Statikus gombok
-    // ---------------------------------------------------------------------------
     private void OnInputClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button) return;
@@ -73,7 +79,6 @@ public partial class MainWindow : Window
         SetStatus("Törölve.");
     }
 
-    // ROSLYN itt maradt: A dinamikus matematikai kifejezések kiértékelésére
     private async void OnCalculateClick(object? sender, RoutedEventArgs e)
     {
         var input = Display.Text?.Trim();
@@ -84,15 +89,9 @@ public partial class MainWindow : Window
             var result = await CSharpScript.EvaluateAsync(input, opts);
             Display.Text = result?.ToString() ?? "null";
         }
-        catch
-        {
-            Display.Text = "Hiba";
-        }
+        catch { Display.Text = "Hiba"; }
     }
 
-    // ---------------------------------------------------------------------------
-    // 🤖 AI GOMB – a self-evolving mag
-    // ---------------------------------------------------------------------------
     private async void OnAiClick(object? sender, RoutedEventArgs e)
     {
         var prompt = Display.Text?.Trim();
@@ -101,37 +100,31 @@ public partial class MainWindow : Window
             SetStatus("Írj be kérést a kijelzőre!", isError: true);
             return;
         }
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GOOGLE_API_KEY")))
-        {
-            SetStatus("Hiányzó API kulcs!", isError: true);
-            return;
-        }
-        if (!_evolver.IsSourceAvailable)
-        {
-            SetStatus("A forráskód nem elérhető. Evolúció nem lehetséges.", isError: true);
-            return;
-        }
 
         AiButton.IsEnabled = false;
         SetStatus("🤖 AI generálja a kódot...");
 
         try
         {
-            // AI hívás
             var aiResponse = await CallGeminiForEvolveAsync(prompt);
 
-            // AZONNALI forráskódba írás és újrafordítás (Nincs RAM mód)
-            SetStatus("💾 Forráskódba írás és újrafordítás...");
-            var result = await _evolver.EvolveAndRestartAsync(
-                featureName:      aiResponse.HandlerName,
-                buttonLabel:      aiResponse.Label,
-                handlerCode:      aiResponse.HandlerMethod,
-                progressCallback: msg => SetStatus(msg)
-            );
+            // 1. Azonnali futtatás RAM-ban (UI gomb létrehozása újraindítás nélkül)
+            await RunCodeInRamAsync(aiResponse.Label, aiResponse.RuntimeScript);
 
-            if (!result.Success)
+            // 2. Ha van forráskód → némán írja be magát a háttérben
+            if (_evolver.IsSourceAvailable)
             {
-                SetStatus($"⚠️ Hiba történt: {result.Message}", isError: true);
+                SetStatus("💾 Forráskódba mentés a háttérben...");
+                var result = await _evolver.EvolveSilentlyAsync(
+                    featureName: aiResponse.HandlerName,
+                    buttonLabel: aiResponse.Label,
+                    handlerCode: aiResponse.HandlerMethod
+                );
+
+                if (!result.Success)
+                    SetStatus($"⚠️ Háttérmentés sikertelen: {result.Message}", isError: true);
+                else
+                    SetStatus($"✅ '{aiResponse.Label}' hozzáadva és elmentve!");
             }
         }
         catch (Exception ex)
@@ -144,9 +137,6 @@ public partial class MainWindow : Window
         }
     }
 
-    // ---------------------------------------------------------------------------
-    // Gemini hívás – Az eredeti prompt marad
-    // ---------------------------------------------------------------------------
     private async Task<AiEvolveResponse> CallGeminiForEvolveAsync(string userPrompt)
     {
         string systemInstruction = """
@@ -191,23 +181,79 @@ public partial class MainWindow : Window
             ?? throw new Exception("Nem sikerült értelmezni az AI JSON válaszát.");
     }
 
+    private async Task RunCodeInRamAsync(string label, string runtimeScript)
+    {
+        var options = BuildScriptOptions();
+
+        try
+        {
+            if (_scriptState == null)
+                _scriptState = await CSharpScript.RunAsync(runtimeScript, options, globals: _globals, globalsType: typeof(ScriptGlobals));
+            else
+                _scriptState = await _scriptState.ContinueWithAsync(runtimeScript);
+
+            await Dispatcher.UIThread.InvokeAsync(() => AddRuntimeButton(label, runtimeScript));
+            _runtimeFeatures.Add((label, runtimeScript));
+        }
+        catch (CompilationErrorException ex)
+        {
+            var errors = string.Join("; ", ex.Diagnostics.Select(d => d.GetMessage()));
+            Display.Text = "Fordítási hiba";
+            SetStatus($"❌ Roslyn hiba: {errors}", isError: true);
+        }
+    }
+
+    private void AddRuntimeButton(string label, string code)
+    {
+        var btn = new Button
+        {
+            Content = label,
+            FontSize = 20,
+            Height = 52,
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Stretch,
+            Margin = new Thickness(2),
+            Background = new SolidColorBrush(Color.Parse("#2979FF")),
+            Foreground = Brushes.White,
+            Tag = code
+        };
+
+        btn.Click += async (s, _) =>
+        {
+            if (s is not Button b) return;
+            b.IsEnabled = false;
+            try
+            {
+                var opts = BuildScriptOptions();
+                if (_scriptState == null)
+                    _scriptState = await CSharpScript.RunAsync(b.Tag as string ?? "", opts, _globals, typeof(ScriptGlobals));
+                else
+                    _scriptState = await _scriptState.ContinueWithAsync(b.Tag as string ?? "");
+            }
+            catch (Exception ex) { SetStatus($"❌ Hiba: {ex.Message}", isError: true); }
+            finally { b.IsEnabled = true; }
+        };
+        
+        ActionGrid.Children.Add(btn);
+    }
+
+    private static ScriptOptions BuildScriptOptions() =>
+        ScriptOptions.Default
+            .WithReferences(typeof(object).Assembly, typeof(Enumerable).Assembly, typeof(System.Net.Http.HttpClient).Assembly, typeof(Window).Assembly, typeof(Avalonia.Media.Color).Assembly, Assembly.GetExecutingAssembly())
+            .WithImports("System", "System.Math", "System.Linq", "System.Collections.Generic", "System.Net.Http", "System.Threading.Tasks", "Avalonia.Controls", "Avalonia.Media");
+
     private void SetStatus(string message, bool isError = false)
     {
         Dispatcher.UIThread.Post(() =>
         {
             StatusText.Text = message;
-            StatusText.Foreground = isError
-                ? new SolidColorBrush(Color.Parse("#D32F2F"))
-                : new SolidColorBrush(Color.Parse("#555555"));
+            StatusText.Foreground = isError ? new SolidColorBrush(Color.Parse("#D32F2F")) : new SolidColorBrush(Color.Parse("#555555"));
         });
     }
 
     // [INJECT POINT]
 }
 
-// ---------------------------------------------------------------------------
-// AI válasz modell
-// ---------------------------------------------------------------------------
 public record AiEvolveResponse(
     string Label,
     string HandlerName,
