@@ -1,43 +1,91 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="Demo.MainWindow"
-        Title="AI Számológép" 
-        Width="350" Height="500"
+        Title="Self-Evolving AI Számológép"
+        Width="400" Height="650"
         WindowStartupLocation="CenterScreen">
 
-    <Grid RowDefinitions="Auto, *">
-        <TextBox x:Name="Display" 
-                 Grid.Row="0" 
-                 FontSize="32" 
-                 Margin="10" 
-                 TextAlignment="Right" 
+    <Grid RowDefinitions="Auto, Auto, Auto, *">
+
+        <!-- Kijelző -->
+        <TextBox x:Name="Display"
+                 Grid.Row="0"
+                 FontSize="28"
+                 Margin="10,10,10,4"
+                 TextAlignment="Right"
+                 IsReadOnly="False"
                  PlaceholderText="0" />
 
-        <UniformGrid Grid.Row="1" Columns="4" Rows="5" Margin="10">
-            <Button Content="C" Click="OnClearClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="(" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content=")" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="/" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+        <!-- Státusz sor az AI műveletekhez -->
+        <TextBlock x:Name="StatusText"
+                   Grid.Row="1"
+                   FontSize="11"
+                   Margin="14,0,10,4"
+                   Foreground="#888888"
+                   Text="" />
 
-            <Button Content="7" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="8" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="9" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="*" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+        <!-- Statikus számológép gombok -->
+        <Grid Grid.Row="2" Margin="10,4,10,4">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="52"/>
+                <RowDefinition Height="52"/>
+                <RowDefinition Height="52"/>
+                <RowDefinition Height="52"/>
+                <RowDefinition Height="52"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-            <Button Content="4" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="5" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="6" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="-" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="0" Grid.Column="0" Content="C"   Click="OnClearClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="0" Grid.Column="1" Content="("   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="0" Grid.Column="2" Content=")"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="0" Grid.Column="3" Content="/"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
 
-            <Button Content="1" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="2" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="3" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="+" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="1" Grid.Column="0" Content="7"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="1" Grid.Column="1" Content="8"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="1" Grid.Column="2" Content="9"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="1" Grid.Column="3" Content="*"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
 
-            <Button Content="AI" Click="OnAiClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="0" Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="." Click="OnInputClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-            <Button Content="=" Click="OnCalculateClick" FontSize="24" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
-        </UniformGrid>
+            <Button Grid.Row="2" Grid.Column="0" Content="4"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="2" Grid.Column="1" Content="5"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="2" Grid.Column="2" Content="6"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="2" Grid.Column="3" Content="-"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+
+            <Button Grid.Row="3" Grid.Column="0" Content="1"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="3" Grid.Column="1" Content="2"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="3" Grid.Column="2" Content="3"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="3" Grid.Column="3" Content="+"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+
+            <!-- AI gomb: 2 oszlopot foglal -->
+            <Button Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2"
+                    x:Name="AiButton"
+                    Content="🤖 AI Funkció"
+                    Click="OnAiClick"
+                    FontSize="16"
+                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="4" Grid.Column="2" Content="0"   Click="OnInputClick"   FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+            <Button Grid.Row="4" Grid.Column="3" Content="="   Click="OnCalculateClick" FontSize="20" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="2"/>
+        </Grid>
+
+        <!-- Dinamikus AI gombok területe (görgethetős) -->
+        <Border Grid.Row="3" Margin="10,4,10,10" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4">
+            <Grid RowDefinitions="Auto, *">
+                <TextBlock Grid.Row="0"
+                           Text="⚡ AI által generált funkciók"
+                           FontSize="11"
+                           Foreground="#666666"
+                           Margin="8,4,8,2"/>
+                <ScrollViewer Grid.Row="1">
+                    <WrapPanel x:Name="DynamicButtonPanel"
+                               Margin="6"
+                               Orientation="Horizontal"/>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
     </Grid>
 </Window>

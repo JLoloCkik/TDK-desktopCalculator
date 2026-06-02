@@ -1,10 +1,15 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <!-- Ha .NET 10-et használsz, írd át net10.0-ra -->
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- Roslyn futtatáshoz szükséges: megakadályozza, hogy a runtime
+         kivágja az assembly-ket, amikre Roslyn futás közben hivatkozik -->
+    <PreserveCompilationContext>true</PreserveCompilationContext>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Avalonia -->
     <PackageReference Include="Avalonia" Version="12.0.3" />
     <PackageReference Include="Avalonia.Desktop" Version="12.0.3" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.3" />
@@ -22,7 +28,10 @@
       <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
+
+    <!-- AI + Scripting + Config -->
     <PackageReference Include="Google.GenAI" Version="1.7.0" />
+    <!-- FONTOS: a Scripting csomag hozza magával a Roslyn fordítót -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.9.2" />
     <PackageReference Include="DotNetEnv" Version="3.0.0" />
   </ItemGroup>
