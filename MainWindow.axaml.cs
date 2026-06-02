@@ -1,7 +1,5 @@
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Linq;
-using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia;
@@ -9,41 +7,19 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using Google.GenAI;
 
 namespace Demo;
 
-// ---------------------------------------------------------------------------
-// Globals: a Roslyn szkript ezen keresztül fér hozzá az élő ablakhoz
-// ---------------------------------------------------------------------------
-public class ScriptGlobals
-{
-    public MainWindow Window { get; set; } = null!;
-
-    public string DisplayText
-    {
-        get => Window.Display.Text ?? "";
-        set => Dispatcher.UIThread.Post(() => Window.Display.Text = value);
-    }
-}
-
 public partial class MainWindow : Window
 {
-    // Roslyn "memória" – az összes korábbi szkript állapota megmarad
-    private ScriptState<object>? _scriptState;
-    private readonly ScriptGlobals _globals;
     private readonly SelfEvolver _evolver;
-
-    // Futás közbeni (RAM-only) gombok nyilvántartása
-    private readonly List<(string Label, string Code)> _runtimeFeatures = new();
 
     public MainWindow()
     {
         InitializeComponent();
-        _globals = new ScriptGlobals { Window = this };
         _evolver = new SelfEvolver();
         LoadEnvironment();
         UpdateEvolverStatus();
@@ -75,9 +51,9 @@ public partial class MainWindow : Window
     private void UpdateEvolverStatus()
     {
         if (_evolver.IsSourceAvailable)
-            EvolverStatusText.Text = "🟢 Self-evolving: AKTÍV (forráskód írható)";
+            EvolverStatusText.Text = "🟢 Self-evolving: AKTÍV (Azonnali kódba írás)";
         else
-            EvolverStatusText.Text = "🟡 Self-evolving: RAM mód (forráskód nem elérhető)";
+            EvolverStatusText.Text = "🔴 Self-evolving: INAKTÍV (Forráskód nem elérhető)";
     }
 
     // ---------------------------------------------------------------------------
@@ -97,6 +73,7 @@ public partial class MainWindow : Window
         SetStatus("Törölve.");
     }
 
+    // ROSLYN itt maradt: A dinamikus matematikai kifejezések kiértékelésére
     private async void OnCalculateClick(object? sender, RoutedEventArgs e)
     {
         var input = Display.Text?.Trim();
@@ -129,36 +106,32 @@ public partial class MainWindow : Window
             SetStatus("Hiányzó API kulcs!", isError: true);
             return;
         }
+        if (!_evolver.IsSourceAvailable)
+        {
+            SetStatus("A forráskód nem elérhető. Evolúció nem lehetséges.", isError: true);
+            return;
+        }
 
         AiButton.IsEnabled = false;
         SetStatus("🤖 AI generálja a kódot...");
 
         try
         {
-            // AI hívás – JSON választ kérünk (metódus + gomb label)
+            // AI hívás
             var aiResponse = await CallGeminiForEvolveAsync(prompt);
 
-            // 1. Azonnali futtatás RAM-ban (nem kell újraindítás az előnézethez)
-            await RunCodeInRamAsync(aiResponse.Label, aiResponse.RuntimeScript);
+            // AZONNALI forráskódba írás és újrafordítás (Nincs RAM mód)
+            SetStatus("💾 Forráskódba írás és újrafordítás...");
+            var result = await _evolver.EvolveAndRestartAsync(
+                featureName:      aiResponse.HandlerName,
+                buttonLabel:      aiResponse.Label,
+                handlerCode:      aiResponse.HandlerMethod,
+                progressCallback: msg => SetStatus(msg)
+            );
 
-            // 2. Ha van forráskód → írja be magát és fordítsa újra
-            if (_evolver.IsSourceAvailable)
+            if (!result.Success)
             {
-                SetStatus("💾 Forráskódba írás és újrafordítás...");
-                var result = await _evolver.EvolveAndRestartAsync(
-                    featureName:      aiResponse.HandlerName,
-                    buttonLabel:      aiResponse.Label,
-                    handlerCode:      aiResponse.HandlerMethod,
-                    progressCallback: msg => SetStatus(msg)
-                );
-
-                if (!result.Success)
-                    SetStatus($"⚠️ Forráskód írás sikertelen (RAM mód marad): {result.Message}", isError: true);
-                // Ha sikeres: EvolveAndRestartAsync újraindítja az appot → ide nem jutunk el
-            }
-            else
-            {
-                SetStatus($"✅ '{aiResponse.Label}' hozzáadva (RAM mód – újraindítás után elveszik).");
+                SetStatus($"⚠️ Hiba történt: {result.Message}", isError: true);
             }
         }
         catch (Exception ex)
@@ -172,13 +145,10 @@ public partial class MainWindow : Window
     }
 
     // ---------------------------------------------------------------------------
-    // Gemini hívás – strukturált JSON választ kérünk
+    // Gemini hívás – Az eredeti prompt marad
     // ---------------------------------------------------------------------------
     private async Task<AiEvolveResponse> CallGeminiForEvolveAsync(string userPrompt)
     {
-        // FONTOS: a system prompt két dolgot kér egyszerre:
-        //   handlerMethod = valódi C# partial class metódus (forráskódba kerül)
-        //   runtimeScript = Roslyn szkript (azonnal fut, preview)
         string systemInstruction = """
             You are a senior C# / Avalonia UI developer building a self-evolving desktop calculator app.
 
@@ -214,122 +184,13 @@ public partial class MainWindow : Window
         );
 
         var raw = response.Candidates?[0].Content?.Parts?[0].Text ?? "";
+        raw = raw.Replace("```json", "").Replace("```", "").Trim();
 
-        // Esetleges markdown blokk eltávolítása
-        raw = raw
-            .Replace("```json", "")
-            .Replace("```", "")
-            .Trim();
-
-        var parsed = JsonSerializer.Deserialize<AiEvolveResponse>(raw,
+        return JsonSerializer.Deserialize<AiEvolveResponse>(raw,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
             ?? throw new Exception("Nem sikerült értelmezni az AI JSON válaszát.");
-
-        return parsed;
     }
 
-    // ---------------------------------------------------------------------------
-    // Azonnali RAM-futtatás (preview, nincs újraindítás szükséges)
-    // ---------------------------------------------------------------------------
-    private async Task RunCodeInRamAsync(string label, string runtimeScript)
-    {
-        SetStatus($"⚡ '{label}' futtatása RAM-ban (preview)...");
-
-        var options = BuildScriptOptions();
-
-        try
-        {
-            if (_scriptState == null)
-            {
-                _scriptState = await CSharpScript.RunAsync(
-                    runtimeScript, options,
-                    globals: _globals,
-                    globalsType: typeof(ScriptGlobals));
-            }
-            else
-            {
-                _scriptState = await _scriptState.ContinueWithAsync(runtimeScript);
-            }
-
-            // Gomb hozzáadása a DynamicButtonPanel-hez (RAM-only)
-            await Dispatcher.UIThread.InvokeAsync(() =>
-                AddRuntimeButton(label, runtimeScript));
-
-            _runtimeFeatures.Add((label, runtimeScript));
-        }
-        catch (CompilationErrorException ex)
-        {
-            var errors = string.Join("; ", ex.Diagnostics.Select(d => d.GetMessage()));
-            Display.Text = "Fordítási hiba";
-            SetStatus($"❌ Roslyn hiba: {errors}", isError: true);
-        }
-    }
-
-    // ---------------------------------------------------------------------------
-    // RAM-only gomb a DynamicButtonPanel-hez
-    // ---------------------------------------------------------------------------
-    private void AddRuntimeButton(string label, string code)
-    {
-        var btn = new Button
-        {
-            Content      = label,
-            FontSize     = 13,
-            Padding      = new Thickness(10, 6),
-            Margin       = new Thickness(3),
-            Background   = new SolidColorBrush(Color.Parse("#2979FF")),
-            Foreground   = Brushes.White,
-            CornerRadius = new CornerRadius(4),
-            Tag          = code
-        };
-
-        btn.Click += async (s, _) =>
-        {
-            if (s is not Button b) return;
-            b.IsEnabled = false;
-            try
-            {
-                var opts = BuildScriptOptions();
-                if (_scriptState == null)
-                    _scriptState = await CSharpScript.RunAsync(
-                        b.Tag as string ?? "", opts,
-                        globals: _globals, globalsType: typeof(ScriptGlobals));
-                else
-                    _scriptState = await _scriptState.ContinueWithAsync(b.Tag as string ?? "");
-            }
-            catch (Exception ex)
-            {
-                SetStatus($"❌ Hiba: {ex.Message}", isError: true);
-            }
-            finally { b.IsEnabled = true; }
-        };
-
-        var shortCode = code.Length > 150 ? code[..150] + "..." : code;
-        ToolTip.SetTip(btn, $"⚠️ RAM-only (újraindítás után elveszik)\n\nKód:\n{shortCode}");
-        DynamicButtonPanel.Children.Add(btn);
-    }
-
-    // ---------------------------------------------------------------------------
-    // Roslyn ScriptOptions (közös)
-    // ---------------------------------------------------------------------------
-    private static ScriptOptions BuildScriptOptions() =>
-        ScriptOptions.Default
-            .WithReferences(
-                typeof(object).Assembly,
-                typeof(Enumerable).Assembly,
-                typeof(System.Net.Http.HttpClient).Assembly,
-                typeof(Window).Assembly,
-                typeof(Avalonia.Media.Color).Assembly,
-                Assembly.GetExecutingAssembly()
-            )
-            .WithImports(
-                "System", "System.Math", "System.Linq",
-                "System.Collections.Generic", "System.Net.Http",
-                "System.Threading.Tasks", "Avalonia.Controls", "Avalonia.Media"
-            );
-
-    // ---------------------------------------------------------------------------
-    // Státuszsor
-    // ---------------------------------------------------------------------------
     private void SetStatus(string message, bool isError = false)
     {
         Dispatcher.UIThread.Post(() =>
