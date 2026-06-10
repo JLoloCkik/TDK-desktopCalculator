@@ -22,8 +22,7 @@ public class SelfEvolver
     }
 
     public bool IsSourceAvailable => File.Exists(_csFilePath) && File.Exists(_axamlFilePath);
-
-    // Evolve némán: Nincs újraindítás! Csak a fájlokat mentjük és buildeljük.
+    
     public async Task<EvolveResult> EvolveSilentlyAsync(
         string featureName,
         string buttonLabel,
@@ -45,6 +44,7 @@ public class SelfEvolver
 
             await File.WriteAllTextAsync(_csFilePath + ".bak", csSource, Encoding.UTF8);
             await File.WriteAllTextAsync(_axamlFilePath + ".bak", axamlSource, Encoding.UTF8);
+            
             await File.WriteAllTextAsync(_csFilePath, newCsSource, Encoding.UTF8);
             await File.WriteAllTextAsync(_axamlFilePath, newAxamlSource, Encoding.UTF8);
 
@@ -55,8 +55,7 @@ public class SelfEvolver
                 await File.WriteAllTextAsync(_axamlFilePath, axamlSource, Encoding.UTF8);
                 return EvolveResult.Fail($"Build hiba, forráskód visszaállítva.");
             }
-
-            // MINDEN SIKERES, NINCS ÚJRAINDÍTÁS
+            
             return EvolveResult.Ok("Mentve és befordítva.");
         }
         catch (Exception ex)

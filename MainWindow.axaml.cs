@@ -64,7 +64,8 @@ public partial class MainWindow : Window
             ? "🟢 Self-evolving: AKTÍV (Azonnali RAM + Háttér mentés)"
             : "🟡 Self-evolving: RAM mód (Forráskód nem elérhető)";
     }
-
+    
+    // Calculator
     private void OnInputClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button) return;
@@ -107,14 +108,12 @@ public partial class MainWindow : Window
         try
         {
             var aiResponse = await CallGeminiForEvolveAsync(prompt);
-
-            // 1. Azonnali futtatás RAM-ban (UI gomb létrehozása újraindítás nélkül)
+            
             await RunCodeInRamAsync(aiResponse.Label, aiResponse.RuntimeScript);
-
-            // 2. Ha van forráskód → némán írja be magát a háttérben
+            
             if (_evolver.IsSourceAvailable)
             {
-                SetStatus("💾 Forráskódba mentés a háttérben...");
+                SetStatus("Forráskódba mentés a háttérben...");
                 var result = await _evolver.EvolveSilentlyAsync(
                     featureName: aiResponse.HandlerName,
                     buttonLabel: aiResponse.Label,
@@ -122,7 +121,7 @@ public partial class MainWindow : Window
                 );
 
                 if (!result.Success)
-                    SetStatus($"⚠️ Háttérmentés sikertelen: {result.Message}", isError: true);
+                    SetStatus($"Háttérmentés sikertelen: {result.Message}", isError: true);
                 else
                     SetStatus($"✅ '{aiResponse.Label}' hozzáadva és elmentve!");
             }
@@ -199,7 +198,7 @@ public partial class MainWindow : Window
         {
             var errors = string.Join("; ", ex.Diagnostics.Select(d => d.GetMessage()));
             Display.Text = "Fordítási hiba";
-            SetStatus($"❌ Roslyn hiba: {errors}", isError: true);
+            SetStatus($"Roslyn hiba: {errors}", isError: true);
         }
     }
 
